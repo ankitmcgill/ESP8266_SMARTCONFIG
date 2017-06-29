@@ -19,6 +19,10 @@
 //DEBUG RELATRED
 static uint8_t _esp8266_smartconfig_debug;
 
+//OPERATIONAL MODE RELATED
+static ESP8266_SMARTCONFIG_MODE _esp8266_smartconfig_mode;
+static uint8_t _esp8266_smartconfig_gpio_num;
+
 //CALLBACK FUNCTION VARIABLES
 static void (*_esp8266_smartconfig_user_cb_function)(void);
 
@@ -27,6 +31,40 @@ void ICACHE_FLASH_ATTR ESP8266_TCP_GET_SetDebug(uint8_t debug_on)
     //SET DEBUG PRINTF ON(1) OR OFF(0)
     
     _esp8266_smartconfig_debug = debug_on;
+}
+
+void ICACHE_FLASH_ATTR ESP8266_SMARTCONFIG_Initialize(ESP8266_SMARTCONFIG_MODE mode, uint8_t gpio)
+{
+    //INITIALIZE SMARTCONFIG IN THE MODE SPECIFIED
+    //GPIO : GPIO PIN READ VALUE IS USED TO DETERMINE IF BOOTING IN THE NORMAL MODE OR SMARTCONFIG
+    //WIFI_TIMEOUT : IF CONNECTION TO WIFI FAILS(USING STORED CREDENTIALS), START SMARTCONFIG
+    
+    _esp8266_smartconfig_mode = mode;
+    _esp8266_smartconfig_gpio_num = gpio;
+
+    if(mode == ESP8266_SMARTCONFIG_MODE_GPIO)
+    {
+        //GPIO MODE
+
+        //SET THE GPIO PIN TO INPUT WILL PULLUP ENABLED
+        GPIO_PIN_FUNC_SELECT(x);
+        GPIO_PIN_PULLUP_EN(x);   
+        GPIO_PIN_DIS_OUTPUT(x);
+
+        if(_esp8266_smartconfig_debug)
+        {
+            os_printf("ESP8266 : SMARTCONFIG : Initialized in GPIO mode\n");
+        }
+    }
+    else
+    {
+        //WIFI TIMEOUT MODE
+        
+        if(_esp8266_smartconfig_debug)
+        {
+            os_printf("ESP8266 : SMARTCONFIG : Initialized in WIFI TIMEOUT mode\n");
+        }
+    }
 }
 
 void ICACHE_FLASH_ATTR ESP8266_SMARTCONFIG_SetSmartconfigDoneUserCb(void (*user_cb)(void))
@@ -46,16 +84,36 @@ void ICACHE_FLASH_ATTR ESP8266_SMARTCONFIG_SetSmartconfigDoneUserCb(void (*user_
 void ICACHE_FLASH_ATTR ESP8266_SMARTCONFIG_Start(void)
 {
     //START SMARTCONFIG
-    
-    //SET THE SYSTEM IN STATION MODE - SMARTCONFIG REQUIREMENT
-    wifi_set_opmode(STATION_MODE);
+    //DEPENDING ON THE OPERATIONAL MODE, EITHER USE GPIO TO DETERMINE
+    //IF TO START IN SMARTCONFIG MODE OR USE WIFI TIMEOUT
 
-    //START SMARTCONFIG
-    smartconfig_start(_esp8266_smartconfig_smartconfigevents_cb, SC_TYPE_ESPTOUCH);
-
-    if(_esp8266_smartconfig_debug)
+    if(_esp8266_smartconfig_mode = ESP8266_SMARTCONFIG_MODE_GPIO)
     {
-        os_printf("ESP8266 : SMARTCONFIG : Started\n");
+        //GPIO MODE
+
+        if(GPIO_INPUT_GET(_esp8266_smartconfig_gpio_num) == 0)
+        {
+            //GPIO PRESSED. START SMARTCONFIG
+            //SET THE SYSTEM IN STATION MODE - SMARTCONFIG REQUIREMENT
+            wifi_set_opmode(STATION_MODE);
+
+            //START SMARTCONFIG
+            smartconfig_start(_esp8266_smartconfig_smartconfigevents_cb, SC_TYPE_ESPTOUCH);
+            
+            if(_esp8266_smartconfig_debug)
+            {
+                os_printf("ESP8266 : SMARTCONFIG : Started\n");
+            }
+        }
+        else
+        {
+            //GPIO NOT PRESSED. NORMAL BOOT MODE
+            wifi_station_connect();
+        }
+    }
+    else
+    {
+        //WIFI TIMEOUT MODE
     }
 }
 
