@@ -46,6 +46,7 @@ void ICACHE_FLASH_ATTR ESP8266_SMARTCONFIG_SetSmartconfigDoneUserCb(void (*user_
 void ICACHE_FLASH_ATTR ESP8266_SMARTCONFIG_Start(void);
 
 //INTERNAL CALLBACK FUNCTIONS
+void ICACHE_FLASH_ATTR _esp8266_smartconfig_wifi_event_handler_cb(System_Event_t* event);
 void ICACHE_FLASH_ATTR _esp8266_smartconfig_smartconfigevents_cb(sc_status status, void* pdata);
 //END FUNCTION PROTOTYPES/////////////////////////////////
 #endif

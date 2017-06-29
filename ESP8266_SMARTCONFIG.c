@@ -19,6 +19,10 @@
 //DEBUG RELATRED
 static uint8_t _esp8266_smartconfig_debug;
 
+//WIFI CONNECTION RELATED
+static uint8_t _esp8266_smartconfig_wifi_connected;
+static os_timer_t _esp8266_smartconfig_wifi_timer;
+
 //OPERATIONAL MODE RELATED
 static ESP8266_SMARTCONFIG_MODE _esp8266_smartconfig_mode;
 static uint8_t _esp8266_smartconfig_gpio_num;
@@ -65,6 +69,8 @@ void ICACHE_FLASH_ATTR ESP8266_SMARTCONFIG_Initialize(ESP8266_SMARTCONFIG_MODE m
             os_printf("ESP8266 : SMARTCONFIG : Initialized in WIFI TIMEOUT mode\n");
         }
     }
+
+    _esp8266_smartconfig_wifi_connected = 0;
 }
 
 void ICACHE_FLASH_ATTR ESP8266_SMARTCONFIG_SetSmartconfigDoneUserCb(void (*user_cb)(void))
@@ -108,6 +114,7 @@ void ICACHE_FLASH_ATTR ESP8266_SMARTCONFIG_Start(void)
         else
         {
             //GPIO NOT PRESSED. NORMAL BOOT MODE
+            wifi_set_event_handler_cb(_esp8266_smartconfig_user_cb_function);
             wifi_station_connect();
         }
     }
@@ -117,6 +124,59 @@ void ICACHE_FLASH_ATTR ESP8266_SMARTCONFIG_Start(void)
     }
 }
 
+void ICACHE_FLASH_ATTR _esp8266_smartconfig_wifi_event_handler_cb(System_Event_t* event)
+{
+    //INTERNAL CB FUNCTION FOR WIFI EVENTS
+    
+    switch(event->event)
+    {
+        case EVENT_STAMODE_CONNECTED:
+            if(_esp8266_smartconfig_debug)
+            {
+                os_printf("ESP8266 : SMARTCONFIG : wifi event CONNECTED\n");
+            }
+            break;
+        case EVENT_STAMODE_DISCONNECTED:
+            _esp8266_smartconfig_wifi_connected = 0;
+            if(_esp8266_smartconfig_debug)
+            {
+                os_printf("ESP8266 : SMARTCONFIG : wifi event DISCONNECTED\n");
+            }
+            break;
+        case EVENT_STAMODE_AUTHMODE_CHANGE:
+           if(_esp8266_smartconfig_debug)
+            {
+                os_printf("ESP8266 : SMARTCONFIG : wifi event AUTHMODE_CHANGE\n");
+            } 
+            break;
+        case EVENT_STAMODE_GOT_IP:
+            //DEVICE CONNECTED TO WIFI. CALL USER CB FUNCTION
+            //TO START THE APPLICATION
+            //CALL USER CB IF NOT NULL
+            _esp8266_smartconfig_wifi_connected = 1;
+            if(_esp8266_smartconfig_user_cb_function != NULL)
+            {
+                (*_esp8266_smartconfig_user_cb_function)();
+            }
+            break;
+        case EVENT_SOFTAPMODE_STACONNECTED:
+            if(_esp8266_smartconfig_debug)
+            {
+                os_printf("ESP8266 : SMARTCONFIG : wifi event SOFTAP STA CONNECTED\n");
+            } 
+            break;
+        case EVENT_SOFTAPMODE_STADISCONNECTED:
+            if(_esp8266_smartconfig_debug)
+            {
+                os_printf("ESP8266 : SMARTCONFIG : wifi event SOFTAO STA DISCONNECTED\n");
+            } 
+            break;
+        default:
+            if(_esp8266_smartconfig_debug)
+            {
+                os_printf("ESP8266 : SMARTCONFIG : Unknow wifi event %d\n", event->event);
+            }
+}
 
 void ICACHE_FLASH_ATTR _esp8266_smartconfig_smartconfigevents_cb(sc_status status, void* pdata)
 {
@@ -155,6 +215,8 @@ void ICACHE_FLASH_ATTR _esp8266_smartconfig_smartconfigevents_cb(sc_status statu
             struct station_config* sta_conf = pdata;
             wifi_station_set_config(sta_conf);
             wifi_station_disconnect();
+            
+            wifi_set_event_handler_cb(_esp8266_smartconfig_wifi_event_handler_cb);
             wifi_station_connect();
 
             //SET AUTO CONNECT = ON
@@ -190,12 +252,6 @@ void ICACHE_FLASH_ATTR _esp8266_smartconfig_smartconfigevents_cb(sc_status statu
             if(_esp8266_smartconfig_debug)
             {
                 os_printf("ESP8266 : SMARTCONFIG : DONE\n");
-            }
-
-            //CALL USER CB IF NOT NULL
-            if(_esp8266_smartconfig_user_cb_function != NULL)
-            {
-                (*_esp8266_smartconfig_user_cb_function)();
             }
             break;
     }
